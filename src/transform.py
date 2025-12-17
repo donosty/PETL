@@ -1,19 +1,6 @@
 import pandas as pd
 import numpy as np
-
-from pandas.api.types import is_float_dtype, is_numeric_dtype, is_datetime64_any_dtype
-from extract import ruta_archivos_sucios
-
-lista_df = []
-
-df_fechas = pd.DataFrame({
-    "fecha":["2025/01/01", "2025/01/02", "2025/01/03", "NaN"]
-})
-
-for i in ruta_archivos_sucios:
-    
-    df = pd.read_csv(i)
-    lista_df.append(df)
+import logging
 
 class DataTransformer:
     
@@ -23,11 +10,20 @@ class DataTransformer:
     
     def _normalizar_encabezados(self, df_list):
         
-        encabezados_traducidos = ['id_venta', 'fecha', 'articulo', 'cantidad', 'precio', 'ubicacion']
+        encabezados_sql = [
+            'id_venta_original', 
+            'fecha_venta', 
+            'producto', 
+            'cantidad', 
+            'precio_unitario', 
+            'sucursal',
+            'origen_archivo'
+        ]
+        
         dfs_renombrados = []
         
         for df in df_list:
-            df.columns = encabezados_traducidos  
+            df.columns = encabezados_sql  
             dfs_renombrados.append(df)
             
         return dfs_renombrados
@@ -41,41 +37,54 @@ class DataTransformer:
     
     def _limpiar_fechas_y_manejar_nulos(self, df):
         
-        df['fecha'] = pd.to_datetime(df["fecha"], format='mixed', errors='coerce')
+        df['fecha_venta'] = pd.to_datetime(df["fecha_venta"], format='mixed', errors='coerce')
             
-        df_limpio = df.dropna(subset=['fecha'])
+        df_limpio = df.dropna(subset=['fecha_venta'])
         return df_limpio
     
     
-    def _limpiar_texto(str, df):
+    def _limpiar_texto(self, df):
         
-        df['articulo'] = df['articulo'].str.upper()
-        df['ubicacion'] = df['ubicacion'].str.capitalize()
+        df['producto'] = df['producto'].str.upper()
+        df['sucursal'] = df['sucursal'].str.capitalize()
         
         return df
     
     
     def _manejar_nulos_y_tipos_numericos(self, df):
         
-        cantidad_int = is_numeric_dtype(df['cantidad'])
-        precio_float = is_float_dtype(df['precio'])
+        df['precio_unitario'] = pd.to_numeric(df['precio_unitario'], errors='coerce')
+        df['cantidad'] = pd.to_numeric(df['cantidad'], errors='coerce').fillna(0).astype(int)
         
-        if not cantidad_int or not precio_float:
-            df['cantidad'] = df['cantidad'].astype(np.int64)
-            df['precio'] = df['precio'].astype(np.float64)
-            
-        promedio_precios = df['precio'].mean()
-        df = df.fillna({'precio':promedio_precios})
+        promedio_precios = df['precio_unitario'].mean()
+        
+        df['precio_unitario'] = df['precio_unitario'].fillna(promedio_precios)
+        df['precio_unitario'] = df['precio_unitario'].round(2)
         
         return df
     
     
-obj = DataTransformer()
-dfs1 = obj._normalizar_encabezados(lista_df)
-dfs2 = obj._unificar_dataframe(dfs1)
-#print(dfs2.info())
-dfs3 = obj._limpiar_fechas_y_manejar_nulos(df_fechas)
-print(dfs2)
+    def _enriquecer_datos(self, df):
+        
+        df['total_venta'] = df['cantidad'] * df['precio_unitario']
+        
+        return df
+    
+    
+    def ejecutar_transformacion(self, lista_dfs_sucios):
+        logging.info("Iniciando transformacion de los datos...")
+        
+        lista_norm = self._normalizar_encabezados(lista_dfs_sucios)
+        
+        df_sucio = self._unificar_dataframe(lista_norm)
+        
+        df_fechas = self._limpiar_fechas_y_manejar_nulos(df_sucio)
+        
+        df_texto = self._limpiar_texto(df_fechas)
+        
+        df_nulos = self._manejar_nulos_y_tipos_numericos(df_texto)
+        
+        df_final = self._enriquecer_datos(df_nulos)
 
-#dfs4 = obj._limpiar_texto(dfs2)
-#print(dfs4)
+        return df_final    
+    
