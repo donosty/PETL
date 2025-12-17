@@ -4,5 +4,6 @@ env/
 data/
 __pycache__/
 .vscode/
-logs/
 *.log
+.logs/
+logs/
