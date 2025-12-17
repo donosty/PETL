@@ -20,7 +20,7 @@ El proyecto sigue una arquitectura **ETL (Extract, Transform, Load)** orientada 
 * **PostgreSQL:** Almacenamiento final.
 * **Docker:** (Próximamente para containerización).
 
-## ⚙️ Instalación y Uso
+## Instalación y Uso
 
 1.  **Clonar el repositorio:**
     ```bash
